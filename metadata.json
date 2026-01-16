@@ -1,0 +1,5 @@
+{
+  "name": "StoryForge AI",
+  "description": "A web application that transforms text prompts into illustrated storybooks using Gemini AI for text and image generation.",
+  "requestFramePermissions": []
+}
