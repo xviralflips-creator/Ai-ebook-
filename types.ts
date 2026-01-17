@@ -27,11 +27,21 @@ export interface StorySettings {
   pageCount: number;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'user' | 'admin';
+  avatar?: string;
+}
+
 export enum ViewState {
+  LOGIN = 'LOGIN',
   DASHBOARD = 'DASHBOARD',
   WIZARD = 'WIZARD',
   EDITOR = 'EDITOR',
   READER = 'READER',
+  ADMIN = 'ADMIN'
 }
 
 export type GenerationStatus = 'idle' | 'planning' | 'writing' | 'illustrating' | 'complete' | 'error';

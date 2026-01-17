@@ -1,5 +1,7 @@
 {
-  "name": "StoryForge AI",
-  "description": "A web application that transforms text prompts into illustrated storybooks using Gemini AI for text and image generation.",
-  "requestFramePermissions": []
+  "name": "StoryForge AI - Google Edition",
+  "description": "A full-stack capable web application transforming prompts into illustrated storybooks using Google Gemini 2.0 and Imagen 3.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

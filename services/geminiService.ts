@@ -4,22 +4,20 @@ import { StorySettings, StoryPage } from "../types";
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Models
-const TEXT_MODEL = 'gemini-3-flash-preview';
-const IMAGE_MODEL = 'gemini-2.5-flash-image'; // "Nano Banana" equivalent per instructions
+// Models configuration based on latest Google AI Studio guidelines
+const TEXT_MODEL = "gemini-3-flash-preview"; 
+const IMAGE_MODEL = "imagen-3.0-generate-001"; 
 
 export const generateStoryStructure = async (settings: StorySettings): Promise<{ title: string; description: string; pages: Omit<StoryPage, 'imageUrl'>[] }> => {
   try {
     const prompt = `
-      Create a children's story based on the following settings:
-      Topic: ${settings.topic}
+      Write a children's story about "${settings.topic}".
       Genre: ${settings.genre}
-      Target Age: ${settings.ageGroup}
+      Age Group: ${settings.ageGroup}
+      Art Style: ${settings.artStyle}
       Length: ${settings.pageCount} pages.
-
-      Return the response in JSON format.
-      The story should be engaging and appropriate for the age group.
-      For each page, provide the story text and a detailed image generation prompt that describes the scene visually in the style of ${settings.artStyle}.
+      
+      For each page, provide the story text and a HIGHLY DETAILED image generation prompt that describes the scene visually, including the art style.
     `;
 
     const response = await ai.models.generateContent({
@@ -30,16 +28,16 @@ export const generateStoryStructure = async (settings: StorySettings): Promise<{
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            title: { type: Type.STRING },
-            description: { type: Type.STRING },
+            title: { type: Type.STRING, description: "The title of the story" },
+            description: { type: Type.STRING, description: "A brief summary of the story" },
             pages: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
                   pageNumber: { type: Type.INTEGER },
-                  text: { type: Type.STRING },
-                  imagePrompt: { type: Type.STRING, description: "A detailed visual description for an AI image generator" }
+                  text: { type: Type.STRING, description: "The story text for this page" },
+                  imagePrompt: { type: Type.STRING, description: "A detailed visual description for image generation" }
                 },
                 required: ["pageNumber", "text", "imagePrompt"]
               }
@@ -50,55 +48,47 @@ export const generateStoryStructure = async (settings: StorySettings): Promise<{
       }
     });
 
-    const jsonText = response.text;
-    if (!jsonText) throw new Error("No text response from Gemini");
-    
-    return JSON.parse(jsonText);
+    if (!response.text) {
+      throw new Error("No text returned from Gemini.");
+    }
 
-  } catch (error) {
-    console.error("Error generating story structure:", error);
-    throw error;
+    const data = JSON.parse(response.text);
+    return data;
+
+  } catch (error: any) {
+    console.error("Gemini Story Generation Error:", error);
+    throw new Error(`Failed to generate story: ${error.message || error}`);
   }
 };
 
 export const generateIllustration = async (prompt: string, artStyle: string): Promise<string> => {
   try {
-    // Enhance prompt for image model
-    const enhancedPrompt = `Create a ${artStyle} style illustration. ${prompt}. High quality, detailed, colorful.`;
+    // Constructing a prompt optimized for Imagen
+    const finalPrompt = `${prompt}. Art Style: ${artStyle}. High quality, detailed, storybook illustration, 4k resolution.`;
 
-    const response = await ai.models.generateContent({
-      model: IMAGE_MODEL,
-      contents: {
-        parts: [{ text: enhancedPrompt }]
-      },
-      config: {
-        // Image generation doesn't use standard responseMimeType for JSON
-        // We look for inlineData in parts
-      }
+    const response = await ai.models.generateImages({
+        model: IMAGE_MODEL,
+        prompt: finalPrompt,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: '4:3',
+        },
     });
 
-    // Extract image from response
-    let base64Image = '';
-    const parts = response.candidates?.[0]?.content?.parts;
-    
-    if (parts) {
-      for (const part of parts) {
-        if (part.inlineData && part.inlineData.data) {
-          base64Image = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
+    if (response.generatedImages && response.generatedImages.length > 0) {
+        const base64 = response.generatedImages[0].image.imageBytes;
+        return `data:image/jpeg;base64,${base64}`;
     }
 
-    if (!base64Image) {
-      throw new Error("No image data found in response");
-    }
+    throw new Error("No image data returned.");
 
-    return base64Image;
-
-  } catch (error) {
-    console.error("Error generating illustration:", error);
-    // Return a placeholder if generation fails to avoid breaking the UI flow entirely
-    return `https://picsum.photos/800/600?random=${Math.floor(Math.random() * 1000)}`;
+  } catch (error: any) {
+    console.error("Gemini/Imagen Generation Error:", error);
+    // Fallback strategy if Imagen quota is hit or specific model is unavailable
+    // This ensures the user experience doesn't break during demos
+    console.warn("Falling back to placeholder due to API error.");
+    const seed = Math.floor(Math.random() * 100000);
+    return `https://picsum.photos/seed/${seed}/1024/768`;
   }
 };
